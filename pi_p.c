@@ -19,44 +19,68 @@
  */
 
 #include <stdio.h>
-#include <math.h>
+#include <pthread.h>
 #include <stdlib.h>
+#include <math.h>
 #include <sys/time.h>
 
-double CalcPi(int n);
+void* CalcPiParallel(void* arg);
 double GetTime();
+
+typedef struct {
+    int id;
+    int n;
+    int T;
+    double partial_sum;
+} thread_data_t;
 
 int main(int argc, char **argv)
 {
-    int n = 2000000000;
-    const double fPi25DT = 3.141592653589793238462643;
-    double fPi;
-    double fTimeStart, fTimeEnd;
+	if (argc != 3) {
+		fprintf	(stderr, "Uso: %s <n> <T>\n", argv[0]);
+		return 1;
+	}
+	
+    int n = atoi(argv[1]);
+    int T = atoi(argv[2]);
     
-	#ifdef READ_INPUT  
-	printf("Enter the number of intervals: ");
-	scanf("%d",&n);
-	#endif
-
-    if (n <= 0 || n > 2147483647 ) 
-    {
-        printf("\ngiven value has to be between 0 and 2147483647\n");
-        return 1;
-    }
+    pthread_t threads[T];
+    thread_data_t tdata[T];
+    
+    const double fPi25DT = 3.141592653589793238462643;
+    double threadSum = 0.0;
+    double fH, fPi;
+    double fTimeStart, fTimeEnd;
     
     // get initial time 
 	fTimeStart = GetTime();
+	
     /* the calculation is done here*/
-    fPi = CalcPi(n);
+    // create threads
+    for (int i = 0; i < T; i++) {
+		tdata[i].id = i;
+		tdata[i].n = n;
+		tdata[i].T = T;
+		pthread_create(&threads[i], NULL, CalcPiParallel, &tdata[i]);
+	}
+	
+    // wait for threads and sum results
+    for (int i = 0; i < T; i++){
+		pthread_join(threads[i], NULL);
+		threadSum += tdata[i].partial_sum;
+	}
+    fH = 1.0 / (double)n;
+    // pi results
+    fPi = fH * threadSum;
     //get final fime
     fTimeEnd = GetTime();
     
     printf("\npi is approximately = %.20f \nError               = %.20f\n",
            fPi, fabs(fPi - fPi25DT));
     // report time
-    printf("Tiempo calculo      = %.20f \n", fTimeEnd - fTimeStart);
-
-    return 0;
+	printf("Tiempo calculo      = %.20f \n", fTimeEnd - fTimeStart);
+	
+	return 0;
 }
 
 double GetTime() {
@@ -65,24 +89,30 @@ double GetTime() {
     return t.tv_sec + t.tv_usec * 1e-6;
 }
 
-
 double f(double a)
 {
     return (4.0 / (1.0 + a*a));
 }
 
 
-double CalcPi(int n)
+void* CalcPiParallel(void* arg)
 {
-    const double fH   = 1.0 / (double)n;
-    double fSum = 0.0;
+	thread_data_t* data = (thread_data_t*)arg;
+    int n = data->n;
+    int T = data->T;
+    int id = data->id;
+    double fH = 1.0 / (double)n;
+    double local_sum = 0.0;
     double fX;
-    int i;
+    
+     // División del trabajo
+    int start = (n / T) * id;
+    int end = (id == T - 1) ? n : (n / T) * (id + 1);
 
-    for (i = 0; i < n; i += 1)
-    {
+    for (int i = start; i < end; i++) {
         fX = fH * ((double)i + 0.5);
-        fSum += f(fX);
+        local_sum += f(fX);
     }
-    return fH * fSum;
+    data->partial_sum = local_sum;
+    return NULL;
 }
