@@ -27,8 +27,17 @@ double CalcPi(int n);
 double GetTime();
 
 int main(int argc, char **argv)
-{
+{	
+	
     int n = 2000000000;
+    
+	if (argc > 2) {
+		fprintf	(stderr, "Uso: %s <optional: n>\n", argv[0]);
+		return 1;
+	} else if (argc != 1) {
+		n = atoi(argv[1]);
+	} 
+	
     const double fPi25DT = 3.141592653589793238462643;
     double fPi;
     double fTimeStart, fTimeEnd;
